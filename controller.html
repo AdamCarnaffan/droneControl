@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link href='style.css' rel='stylesheet'>
+</head>
+<body>
+<div class='data-segment-lg status-display'><b>Status:&nbsp</b><span id='status'></span></div>
+<div id='controls'>
+  <div class='data-segment-lg'><div class='display-bar-med'><div class='display-bar-sm right-border'><div class='identifier'>Pitch</div><div id='pitch-down' class='bar-fill'></div></div><div class='display-bar-sm'><div id='pitch-up' class='bar-fill'></div></div></div><p id='pitch-val' class='data-segment-sm'>1500</p></div>
+  <div class='data-segment-lg'><div class='display-bar-med'><div class='display-bar-sm right-border'><div class='identifier'>Roll</div><div id='roll-left' class='bar-fill'></div></div><div class='display-bar-sm'><div id='roll-right' class='bar-fill'></div></div></div><p id='roll-val' class='data-segment-sm'>1500</p></div>
+  <div class='data-segment-lg'><div class='display-bar-med'><div class='display-bar-sm right-border'><div class='identifier'>Yaw</div><div id='yaw-left' class='bar-fill'></div></div><div class='display-bar-sm'><div id='yaw-right' class='bar-fill'></div></div></div><p id='yaw-val' class='data-segment-sm'>1500</p></div>
+  <div class='data-segment-lg'><div class='display-bar-med'><div class='identifier'>Throttle</div><div id='throttle' class='bar-fill'></div></div><p id='throttle-val' class='data-segment-sm'>1000</p></div>
+</div>
+<script src='jquery-3.2.1.min.js'></script>
+<script>
+// Initial Display State
+setStatus("Waiting for controller...");
+
+// Instantiate Variables
+var gamePadID = findControllers();
+var controlLoop;
+var foundLoop;
+var conn = new WebSocket("ws://192.168.10.1");
+var ct;
+var cmds = {
+  roll:1500,
+  pitch:1500,
+  yaw:1500,
+  throttle: {
+    base:1040,
+    max:2000,
+    val:1040
+  },
+  aux1:0,
+  aux2:980,
+  aux3:1600,
+  aux4:980
+}
+
+if (gamePadID == null) {
+  searchForControllers();
+} else {
+  foundLoop = startControl();
+}
+
+conn.onclose = function(evt) {
+  if (evt.code == 1006) {
+    setStatus("Could not connect to the drone <h1><b>God damn Adam. Fix your code!</b></h1>");
+  } else {
+    setStatus("A connection error has occured");
+  }
+}
+
+window.addEventListener("onclose", function(c) {
+  setStatus("Could not connect to drone");
+});
+
+window.addEventListener("gamepaddisconnected", function(c) {
+  if (gamePadID == c.gamepad.index) {
+    clearInterval(foundLoop);
+    // ADD DRONE STOP HERE
+    searchForControllers();
+  }
+});
+
+$(window).bind('unload', function() {
+    conn.close();
+    console.log("Ending the connection...");
+})
+
+function findControllers() {
+  var conArr = navigator.getGamepads();
+  var controllerID = null;
+  for (var c = 0; c < 4; c++) {
+    if (conArr[c] != null) {
+      if (conArr[c].id == "Xbox 360 Controller (XInput STANDARD GAMEPAD)") {
+        controllerID = c;
+        break;
+      }
+    }
+  }
+  return controllerID;
+}
+
+function searchForControllers() {
+  window.addEventListener("gamepadconnected", function(c) {
+    gamePadID = findControllers();
+    if (gamePadID != null) {
+      window.removeEventListener("gamepadconnected", function() {});
+      startControl();
+    }
+  });
+}
+
+function startControl() {
+  setStatus("Controller Connected. Waiting for drone...");
+  if (conn.readyState == 1) {
+    toggleDroneActive();
+  } else {
+    conn.onopen = function() {
+      toggleDroneActive();
+    }
+  }
+}
+
+function toggleDroneActive() {
+  toggleControlDisplay();
+  conn.send("1500,1500,1500,1068,0000,0980,0980,0980");
+  console.log("Auto-level Mode Set");
+  controlLoop = setInterval(controlDrone, 100);
+  conn.onclose = function(evt) {
+    setStatus("Drone connection lost. Retrying... <h1><b>God damn Adam. Fix your code!</b></h1>");
+    // Retry drone connection
+  }
+  conn.onopen = function() {}
+}
+
+function controlDrone() {
+  if (conn.readyState == 1) {
+    // if (goingToCrash()) {
+    //   Dont();
+    // }
+    pollController(gamePadID);
+    setStatus("Connection Complete, Ready to go");
+    updateControlDisplay();
+    if (ct.buttons[2].pressed == 1) { // ARM
+      conn.send("1500,1500,2000,1000,0980,1800,1600,0980");
+      cmds.throttle.val = cmds.throttle.base;
+      cmds.aux1 = 980;
+      cmds.aux2 = 1800;
+      cmds.aux3 = 0;
+    } else if (ct.buttons[3].pressed == 1) { // DISARM
+      conn.send("1500,1500,1000,1000,0980,0980,0980,0980");
+      cmds.throttle.val = cmds.throttle.base;
+      cmds.aux2 = 0;
+    } else {
+      // Set Values
+      cmds.roll = convertAnalog(ct.axes[2]);
+      cmds.pitch = convertAnalog(ct.axes[3]);
+      cmds.pitch = invertPitch(changeValLength(cmds.pitch), 4);
+      cmds.yaw = convertAnalog(ct.axes[0]);
+      // calc throttle
+      if (ct.buttons[10].pressed == 1) {
+        cmds.throttle.val = 1100;
+      } else {
+        cmds.throttle.val += eval((ct.axes[1] * -2).toFixed(0));
+        if (cmds.throttle.val < cmds.throttle.base) {
+          cmds.throttle.val = cmds.throttle.base;
+        } else if (cmds.throttle.val > cmds.throttle.max) {
+          cmds.throttle.val = cmds.throttle.max;
+        }
+        var finalThrottle = changeValLength(cmds.throttle.val, 4);
+      }
+      conn.send(cmds.roll + "," + cmds.pitch + "," + cmds.yaw + "," + finalThrottle + "," + changeValLength(cmds.aux1) + "," + changeValLength(cmds.aux2) + "," + changeValLength(cmds.aux3) + ",0980");
+      //console.log(cmds.roll + "," + cmds.pitch + "," + cmds.yaw + "," + finalThrottle + "," + changeValLength(cmds.aux1) + ",0980,0980,0980");
+      //conn.send("1500,1500,1500" + "," + finalThrottle + ",0980,0980,0980,0980");
+    }
+  } else {
+    setStatus("Drone Connection Error!");
+  }
+}
+
+function setStatus(text) {
+  $("#status").html(text);
+}
+
+function toggleControlDisplay() {
+  $("#controls").toggle();
+}
+
+function updateControlDisplay() {
+  // Pitch yaw roll accel 3Dmodel
+  // Pitch Bar
+  var pitchVal
+  if (cmds.pitch > 1500) {
+    $('#pitch-up').width("0%");
+    pitchVal = ((cmds.pitch - 1500) / 175) * 100;
+    $('#pitch-down').width(pitchVal + "%");
+    $('#pitch-down').css("margin-left", (100.1 - pitchVal) + "%");
+  } else if (cmds.pitch == 1500) {
+    $('#pitch-down').width("0%");
+    $('#pitch-up').width("0%");
+  } else {
+    $('#pitch-down').width("0%");
+    pitchVal = ((1500 - cmds.pitch) / 175) * 100;
+    $('#pitch-up').width(pitchVal + "%");
+  }
+  // Roll Bar
+  var rollVal
+  if (cmds.roll < 1500) {
+    $('#roll-right').width("0%");
+    rollVal = ((1500 - cmds.roll) / 175) * 100;
+    $('#roll-left').width(rollVal + "%");
+    $('#roll-left').css("margin-left", (100.1 - rollVal) + "%");
+  } else if (cmds.roll == 1500) {
+    $('#roll-left').width("0%");
+    $('#roll-right').width("0%");
+  } else {
+    $('#roll-left').width("0%");
+    rollVal = ((cmds.roll - 1500) / 175) * 100;
+    $('#roll-right').width(rollVal + "%");
+  }
+  // Yaw Bar
+  var yawVal
+  if (cmds.yaw < 1500) {
+    $('#yaw-right').width("0%");
+    yawVal = ((1500 - cmds.yaw) / 175) * 100;
+    $('#yaw-left').width(yawVal + "%");
+    $('#yaw-left').css("margin-left", (100.1 - yawVal) + "%");
+  } else if (cmds.yaw == 1500) {
+    $('#yaw-left').width("0%");
+    $('#yaw-right').width("0%");
+  } else {
+    $('#yaw-left').width("0%");
+    yawVal = ((cmds.yaw - 1500) / 175) * 100;
+    $('#yaw-right').width(yawVal + "%");
+  }
+  // Throttle Bar
+  var throttlePer = eval((cmds.throttle.val - cmds.throttle.base) / (cmds.throttle.max - cmds.throttle.base)) * 100;
+  $('#throttle').width(throttlePer + "%");
+  // Update Numbers
+  $('#throttle-val').html(cmds.throttle.val);
+  $('#pitch-val').html(cmds.pitch);
+  $('#roll-val').html(cmds.roll);
+  $('#yaw-val').html(cmds.yaw);
+}
+
+function convertAnalog(value) {
+  value = value.toFixed(4);
+  if (Math.abs(value) < 0.09) {
+    return 1500;
+  }
+  var fixedDiff = 0;
+  var difference = value * 175;
+  fixedDiff = difference;
+  if (difference * fixedDiff < 0) {
+    fixedDiff = 0;
+  }
+  var finalVal = (1500 + fixedDiff).toFixed(0);
+  finalVal = changeValLength(finalVal, 4);
+  return finalVal;
+}
+
+function changeValLength(val, length) {
+  if (val == 0) {
+    return "0000";
+  }
+  var value = new String(val);
+  for (var c = val.length; c < length; c++) {
+    value = 0 + value;
+  }
+  return value;
+}
+
+function invertPitch(val) {
+  var difference = val - 1500;
+  return 1500 - difference;
+}
+
+function pollController(controllerID) {
+  ct = navigator.getGamepads()[controllerID]; // need to handle more than one controller on the pc
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+.display-bar-med {
+  height: 2rem;
+  width: 28rem;
+  border: 1px solid black;
+  display: flex;
+  flex-direction: row;
+}
+.display-bar-sm {
+  height: 2rem;
+  width: 14rem;
+}
+.left-border {
+  border-left: 1px solid black;
+}
+.right-border {
+  border-right: 1px solid black;
+}
+.bar-fill {
+  background-color: yellow;
+  height: 2.01rem;
+}
+.data-segment-sm {
+  line-height: .18rem;
+  margin-left: 0.5rem;
+}
+.data-segment-lg {
+  display: flex;
+  flex-direction: row;
+  margin-bottom: 0.5rem;
+}
+.identifier {
+  position: absolute;
+  z-index: 2;
+  line-height: 2.1rem;
+  left: 1rem;
+}
+.status-display {
+  margin-top: .3rem;
+  margin-bottom: .4rem;
+}
+#controls {
+  display: none;
+}

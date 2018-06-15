@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<p id='il'></p>
+<script src='jquery-3.2.1.min.js'></script>
+<script>
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/*
+Axes
+------
+0 -> Left Stick -> LR
+1 -> Left Stick -> UD
+2 -> Right Stick -> LR
+3 -> Right Stick -> UD
+
+Buttons
+-------
+0 -> A
+1 -> B
+2 -> X
+3 -> Y
+4 -> LB
+5 -> RB
+6 -> LT
+7 -> RT
+8 -> BACK
+9 -> START
+10 -> Left Stick press
+11 -> Right Stick press
+12 -> D-Pad Up
+13 -> D-Pad Down
+14 -> D-Pad Left
+15 -> D-Pad Right
+
+TO ARM
+Throttle 0, Yaw full Right
+
+TO DISARM
+Throttle 0, Yaw full Left
+
+*/
+var display = $('#il');
+var ct;
+var ctPrev;
+var cmds = {
+  roll:1500,
+  pitch:1500,
+  yaw:1500,
+  throttle: {
+    base:1069,
+    max:2000,
+    val:1069
+  },
+  aux1:980,
+  aux2:980,
+  aux3:980,
+  aux4:980
+}
+//const conn = new WebSocket("ws://192.168.10.1");
+display.html("lol");
+//conn.onopen = function() {
+  window.addEventListener("gamepadconnected", function(c) {
+    console.log("Controller Connected!");
+    pollController();
+    setInterval(function(c) {
+      pollController();
+      // Set Values
+      cmds.roll = convertAnalog(ct.axes[2]);
+      cmds.pitch = convertAnalog(ct.axes[3]);
+      cmds.yaw = convertAnalog(ct.axes[0]);
+      // calc throttle
+      if (ct.buttons[10].pressed == 1) {
+        cmds.throttle.val = 1100;
+      } else {
+        cmds.throttle.val += eval((ct.axes[1] * -10).toFixed(0));
+        if (cmds.throttle.val < cmds.throttle.base) {
+          cmds.throttle.val = cmds.throttle.base;
+        } else if (cmds.throttle.val > cmds.throttle.max) {
+          cmds.throttle.val = cmds.throttle.max;
+        }
+      }
+    }, 1000);
+  });
+//}
+
+function pollController() {
+  ct = navigator.getGamepads()[2]; // need to handle more than one controller on the pc
+}
+
+function convertAnalog(value) {
+  value = value.toFixed(4);
+  var fixedDiff = 0;
+  var difference = value * 1500;
+  if (difference > 175) {
+    fixedDiff = difference - 175;
+  } else if (difference < -175) {
+    fixedDiff = difference + 175;
+  }
+  if (difference * fixedDiff < 0) {
+    fixedDiff = 0;
+  }
+  return (1500 + fixedDiff).toFixed(0);
+}
+
+</script>
+</html>

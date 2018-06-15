@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<p id='il'></p>
+<script src='jquery-3.2.1.min.js'></script>
+<script>
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/*
+Axes
+------
+0 -> Left Stick -> LR
+1 -> Left Stick -> UD
+2 -> Right Stick -> LR
+3 -> Right Stick -> UD
+
+Buttons
+-------
+0 -> A
+1 -> B
+2 -> X
+3 -> Y
+4 -> LB
+5 -> RB
+6 -> LT
+7 -> RT
+8 -> BACK
+9 -> START
+10 -> Left Stick press
+11 -> Right Stick press
+12 -> D-Pad Up
+13 -> D-Pad Down
+14 -> D-Pad Left
+15 -> D-Pad Right
+
+TO ARM
+Throttle 0, Yaw full Right
+
+TO DISARM
+Throttle 0, Yaw full Left
+
+*/
+var display = $('#il');
+var ct;
+var ctPrev;
+var cmds = {
+
+}
+//const conn = new WebSocket("ws://192.168.10.1");
+display.html("lol");
+//conn.onopen = function() {
+  window.addEventListener("gamepadconnected", function(c) {
+    console.log("Controller Connected!");
+    pollController();
+    setInterval(function(c) {
+      pollController();
+      if (ct.buttons[2].pressed == 1) { // ARM
+        //conn.send("1500,1500,3000,0000,0980,0980,0980,1500");
+      } else if (ct.buttons[3].pressed == 1) {
+        //conn.send("1500,1500,0000,0000,0980,0980,0980,1500");
+      }
+    }, 50);
+  });
+//}
+
+window.addEventListener("onkeydown", function(c) {
+
+});
+window.addEventListener("gamepaddisconnected", function(c) {
+  console.log("Controller Disconnected...");
+});
+//conn.onmessage = function (event) {
+  //console.log(event.data);
+//}
+
+$(window).bind('unload', async function() {
+    //conn.close();
+    console.log("Ending the connection...");
+})
+
+function pollController() {
+  ctPrev = ct;
+  ct = navigator.getGamepads()[2]; // need to handle more than one controller on the pc
+}
+
+</script>
+</html>
